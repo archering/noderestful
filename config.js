@@ -12,13 +12,15 @@
  environment.DEVELOPMENT = {
     port:9091,
     httpsport:9092,
-    mode:"development"
+    mode:"development",
+    key:"thisisasecret"
  };
 
  environment.PRODUCTION = {
     port:9080,
     httpsport:9081,
-    mode:"production"
+    mode:"production",
+    key:"thisisalsoasecret"
  };
 
  //NODE_ENV=production node index_3_router.js   地址栏设置的参数 NODE_ENV的值决定 使用哪种模式
