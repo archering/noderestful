@@ -6,7 +6,6 @@ var file = require("../lib/data");
 var helper = require("../lib/helper");
 
 var handler = {name:"users"};
-var token = require("./token");
 
 var acceptMethods = ["post","get","put","delete"];
 handler.handle = function(req,res){
@@ -29,7 +28,7 @@ handler.get = function(req,res){
     var phone = req.query.phone;
     var tid = req.headers["token"];
     if(phone){
-        token.verifyToken(tid,phone,function(err,desc){
+        helper.verifyToken(tid,phone,function(err,desc){
             if(!err){
                 file.read("users",phone,function(err,dat){
                     if(err){

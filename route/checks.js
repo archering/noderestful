@@ -5,7 +5,7 @@ var StringDecoder = require("string_decoder").StringDecoder;
 var file = require("../lib/data");
 var helper = require("../lib/helper");
 
-var handler = {name:"token"};
+var handler = {name:"checks"};
 
 var acceptMethods = ["post","get","put","delete"];
 handler.handle = function(req,res){
@@ -27,13 +27,23 @@ handler.handle = function(req,res){
 handler.get = function(req,res){
     //read token from header
     var tid = req.header["token"];
+    var cid = req.query["checkId"];
     if(tid){
-        file.read("token",tid,function(err,dat){
+        file.read("checks",cid,function(err,dat){
             if(err){
                 res.end("the token you asked is not exists!");
             }else{
-                res.setHeader("Content-Type","text/json");
-                res.end(dat);
+
+                var datObj = helper.parse2JSON(dat);
+                helper.verifyToken(tid,datObj.phone,function(err,errMSG){
+                    if(!err){
+                        res.end(dat);
+                    }else{
+                        res.writeHead(403);
+                        res.end("not authorized");
+                    }
+                });
+
             }
         });
     }else{
@@ -59,32 +69,65 @@ handler.post = function(req,res){
         res.setHeader("Content-Type","text/json"); //浏览器解析为json对象
         var reqtype = req.headers["content-type"];
         var payload = reqtype=="application/json"?JSON.parse(buffer):buffer;
+        if(!payload.method || !payload.protocal || !payload.url || !payload.timeout){
+            res.writeHead(400);
+            res.end("params not complete");
+            return;
+        }
         var tid = req.headers["token"];
         if(tid){
             helper.verifyToken(tid,payload.phone,function(err,errMSG){
                 if(!err){
-                    file.read("users",payload.phone,function(err,dat){
+                    file.read("token",tid,function(err,dat){
                         if(!err && dat){//user  info exists
                             var udata = helper.parse2JSON(dat);
-                            if(udata.pwd == helper.hash(payload.password)){
-        
-                                var tid = helper.generateToken(20);
-                                var info = {
-                                    phone: payload.phone,
-                                    id:tid,
-                                    expired:(Date.now() + 1000 * 60 * 60)
-                                }
-                                file.create("token",tid,info,function(err,desc){
-                                    res.writeHead(200);
-                                    if(err){
-                                        res.end(JSON.stringify({"error":err}));
+                            if(udata.phone){
+                                
+                                file.read("users",udata.phone,function(err,dat){
+                                    var dat = helper.parse2JSON(dat);
+                                    if(!err){
+                                        if(!dat.checks ||(dat.checks && dat.checks.length<5)){
+                                            var checkId = helper.generateToken(20);
+                                            var dat = {
+                                                method:payload.method,
+                                                protocal:payload.protocal,
+                                                url:payload.url,
+                                                timeout:payload.timeout
+                                            };
+                                            //创建这个checks
+                                            file.create("checks",checkId,dat,function(err){
+                                                if(!err){
+                                                    dat.checks = dat.checks || [];
+                                                    dat.checks.push(checkId);
+
+                                                    file.update("users",udata.phone,dat,function(err){
+                                                        if(!err){
+                                                            res.end("update user checks success");
+                                                        }else{
+                                                            res.writeHead(500);
+                                                            res.end("update user checks fails");
+                                                        }
+                                                    });
+                                                }else{
+                                                    res.writeHead(500);
+                                                    res.end("create check fail");
+                                                }
+                                            });
+                                        }else{
+                                            res.writeHead(500);
+                                            res.end("checks 5 in users");
+                                        }
+
                                     }else{
-                                        res.end(JSON.stringify(info));
+                                        res.writeHead(500);
+                                        res.end(errmsg);
                                     }
                                 });
+
+
                             }else{
                                 res.writeHead(500);
-                                res.end("pwd is wrong");
+                                res.end("phone number is missing");
                             }
                         }else{
                             res.writeHead(500);
