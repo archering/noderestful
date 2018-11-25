@@ -26,7 +26,7 @@ handler.handle = function(req,res){
  */
 handler.get = function(req,res){
     //read token from header
-    var tid = req.header["token"];
+    var tid = req.headers["token"];
     if(tid){
         file.read("token",tid,function(err,dat){
             if(err){
@@ -59,47 +59,34 @@ handler.post = function(req,res){
         res.setHeader("Content-Type","text/json"); //浏览器解析为json对象
         var reqtype = req.headers["content-type"];
         var payload = reqtype=="application/json"?JSON.parse(buffer):buffer;
-        var tid = req.headers["token"];
-        if(tid){
-            helper.verifyToken(tid,payload.phone,function(err,errMSG){
-                if(!err){
-                    file.read("users",payload.phone,function(err,dat){
-                        if(!err && dat){//user  info exists
-                            var udata = helper.parse2JSON(dat);
-                            if(udata.pwd == helper.hash(payload.password)){
-        
-                                var tid = helper.generateToken(20);
-                                var info = {
-                                    phone: payload.phone,
-                                    id:tid,
-                                    expired:(Date.now() + 1000 * 60 * 60)
-                                }
-                                file.create("token",tid,info,function(err,desc){
-                                    res.writeHead(200);
-                                    if(err){
-                                        res.end(JSON.stringify({"error":err}));
-                                    }else{
-                                        res.end(JSON.stringify(info));
-                                    }
-                                });
-                            }else{
-                                res.writeHead(500);
-                                res.end("pwd is wrong");
-                            }
+        file.read("users",payload.phone,function(err,dat){
+            if(!err && dat){
+                var udata = helper.parse2JSON(dat);
+                if(udata.pwd == helper.hash(payload.password)){
+
+                    var tid = helper.generateToken(20);
+                    var info = {
+                        phone: payload.phone,
+                        id:tid,
+                        expired:(Date.now() + 1000 * 60 * 60)
+                    }
+                    file.create("token",tid,info,function(err,desc){
+                        res.writeHead(200);
+                        if(err){
+                            res.end(JSON.stringify({"error":err}));
                         }else{
-                            res.writeHead(500);
-                            res.end(JSON.stringify({status:"falied",error:"file already exists"}));
+                            res.end(JSON.stringify(info));
                         }
                     });
                 }else{
-                    res.writeHead(400);
-                    res.end(errMSG);
+                    res.writeHead(500);
+                    res.end("pwd is wrong");
                 }
-            });
-        }else{
-            res.writeHead(403);
-            res.end("token is empty");            
-        }
+            }else{
+                res.writeHead(500);
+                res.end(JSON.stringify({status:"falied",error:"file already exists"}));
+            }
+        });
     });
 }
 /***

@@ -31,6 +31,7 @@ var httpserver = http.createServer(function(req,res){
         router("/home",req,res);
         router("/users",req,res);
         router("/token",req,res);
+        router("/checks",req,res);
     });
 });
 

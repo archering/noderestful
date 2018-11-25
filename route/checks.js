@@ -69,7 +69,7 @@ handler.post = function(req,res){
         res.setHeader("Content-Type","text/json"); //浏览器解析为json对象
         var reqtype = req.headers["content-type"];
         var payload = reqtype=="application/json"?JSON.parse(buffer):buffer;
-        if(!payload.method || !payload.protocal || !payload.url || !payload.timeout){
+        if(!req.method || !payload.protocal || !req.url || !req.headers["timeout"]){
             res.writeHead(400);
             res.end("params not complete");
             return;
@@ -88,21 +88,21 @@ handler.post = function(req,res){
                                     if(!err){
                                         if(!dat.checks ||(dat.checks && dat.checks.length<5)){
                                             var checkId = helper.generateToken(20);
-                                            var dat = {
+                                            var dat2 = {
                                                 method:payload.method,
                                                 protocal:payload.protocal,
                                                 url:payload.url,
                                                 timeout:payload.timeout
                                             };
                                             //创建这个checks
-                                            file.create("checks",checkId,dat,function(err){
+                                            file.create("checks",checkId,dat2,function(err){
                                                 if(!err){
                                                     dat.checks = dat.checks || [];
                                                     dat.checks.push(checkId);
 
                                                     file.update("users",udata.phone,dat,function(err){
                                                         if(!err){
-                                                            res.end("update user checks success");
+                                                            res.end(JSON.stringify(dat));
                                                         }else{
                                                             res.writeHead(500);
                                                             res.end("update user checks fails");
@@ -197,41 +197,55 @@ handler.put = function(req,res){
 }
 
 handler.delete = function(req,res){
-    var tid = req.headers["token"]
-    if(tid){
-        helper.verifyToken("token",tid,function(err,errMSG){
+   // 一个用户有最多5个checks
+    //删除check 要根据用户输入的 check id
+    var  checkId = req.query["checkId"];
+    var  token = req.headers["token"];
+    if(checkId){
+        file.read("checks",checkId,function(err,dat){
             if(!err){
-                file.read("token",tid,function(err,dat){
-                    var obj = helper.parse2JSON(dat);
+                var o = help.parse2JSON(dat);
+                helper.verifyToken(token,o.phone,function(err,errMSG){
                     if(!err){
-                        if(obj && obj.name == username && obj.phone == phone){
-                            file.delete("token",tid,function(err){
-                                if(err){
-                                    res.writeHead(500);
-                                    res.end("delete user failed",err);
-                                }else{
-                                    res.writeHead(200);
-                                    res.end("delete user with token"+tid + " succeed");
-                                }
-                            });
-                        }else{
-                            res.writeHead(405);
-                            res.end("do not have permission to delete user ");
-                        }
+                        file.delete("checks",checkId,function(err){
+                            if(!err){
+                                file.read("users",o.phone,function(err,dat){
+                                    if(!err && dat){
+                                        var a = helper.parse2JSON(dat);
+                                        var index = a.checks.indexOf(checkId);
+                                        if(index>-1){
+                                            a.checks.splice(index,1);
+                                            file.update("user",o.phone,a,function(err){
+                                                if(!err){
+                                                    res.writeHead(200);
+                                                    res.end("delete success");
+                                                }else{
+                                                    res.writeHead(500);
+                                                    res.end();
+                                                }
+                                            });
+                                        }else{
+                                            res.end("could not find checkid in users");
+                                        }
+                                    }else{
+                                        res.end("user not found");
+                                    }
+                                });
+                            }else{
+                                res.end("delete check failed");
+                            }
+                        })
                     }else{
-                        res.writeHead(400);
-                        res.end("user not exists");                
+                        res.end("token failed");
                     }
                 });
             }else{
-                res.writeHead(403);
-                res.end("token is empty");
+                res.end("read checks failed");
             }
         });
-
     }else{
         res.writeHead(500);
-        res.end("required field is missing");
+        res.end("this si no checkId");
     }
 }
 
